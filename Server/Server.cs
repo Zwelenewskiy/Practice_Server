@@ -12,15 +12,15 @@ namespace Server
     struct User
     {
         int id;
-
+        //приватный ключ
+        //публичный ключ
     }
-    class server
+    class Server
     {
         private HttpListener listener;
         List<User> mas_connect;
 
-        public server(){}
-
+        public Server(){}
         public void NewUser(object obj)
         {
             HttpListenerContext context = (HttpListenerContext)obj;
@@ -37,9 +37,11 @@ namespace Server
             request.InputStream, Encoding.UTF8))
             {
                 inputRead = input.ReadToEnd();
-                switch (inputRead)
+
+                char key = inputRead[0];                
+                switch (key)
                 {
-                    case "setID":
+                    case '0':
                         Random rand = new Random();
                         int id_tmp = rand.Next(100, 10000);
 
@@ -54,21 +56,50 @@ namespace Server
                         Console.WriteLine();
                         Console.WriteLine();
                         return;
-                    default:
-                        Console.WriteLine(inputRead);
+
+                    case '1':
+                        int i;
+                        for (i = 2; i < inputRead.Length; i++)
+                            Console.Write(inputRead[i]);
+                        Console.WriteLine();
+                        // создаем ответ клиенту 
+                        buffer = Encoding.UTF8.GetBytes("Сообщение отправлено");
+                        // получаем поток ответа и пишем в него ответ 
+                        response.ContentLength64 = buffer.Length;
+                        output = response.OutputStream;
+                        output.Write(buffer, 0, buffer.Length);
+                        break;
+
+                    case '2':
+                        i = 2;
+                        int count = 0;
+                        while(i < inputRead.Length)
+                        {
+                            if (inputRead[i] == '\n')
+                                count++;
+
+                            Console.Write(inputRead[i]);
+                            i++;
+                        }
+                        Console.WriteLine();
+                        // создаем ответ клиенту 
+                        buffer = Encoding.UTF8.GetBytes("Отчет отправлен");
+                        // получаем поток ответа и пишем в него ответ 
+                        response.ContentLength64 = buffer.Length;
+                        output = response.OutputStream;
+                        output.Write(buffer, 0, buffer.Length);
+                        break;
+
+                    case '3':
+                        for (i = 2; i < inputRead.Length; i++)
+                            Console.Write(inputRead[i]);
+
+                        Console.Write(" отключился");
+                        Console.WriteLine();
                         break;
                 }
-            }
-           
-            // создаем ответ клиенту 
-            buffer = Encoding.UTF8.GetBytes("Сообщение отправлено");
-            // получаем поток ответа и пишем в него ответ 
-            response.ContentLength64 = buffer.Length;
-            output = response.OutputStream;
-            output.Write(buffer, 0, buffer.Length);
-
+            }      
         }
-
         public void Start(string host)
         {
             listener = new HttpListener();
@@ -79,13 +110,11 @@ namespace Server
             Console.WriteLine("Сервер запущен. Ожидание подключений...");
             Console.WriteLine();
         }
-
         public void Stop()
         {
             // останавливаем прослушивание подключений 
             listener.Stop();
         }
-
         public void NewConnection()
         {
             HttpListenerContext context;

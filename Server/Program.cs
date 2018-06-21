@@ -9,7 +9,7 @@ namespace Server {
     class Program
     {
         static void Main(string[] args){
-            server server = new server();
+            Server server = new Server();
             server.Start("http://localhost:8888/connection/");
 
             while (true){
