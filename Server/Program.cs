@@ -16,5 +16,13 @@ namespace Server {
                 server.NewConnection();
             }
         }
+
+        public static System.Drawing.Image ByteArrayToImage(byte[] img)
+        {
+            using(var ms = new MemoryStream(img))
+            {
+                return System.Drawing.Image.FromStream(ms);
+            }
+        }
     }
 }

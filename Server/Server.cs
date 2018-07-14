@@ -5,20 +5,35 @@ using System.IO;
 using System.Threading;
 using System.Collections.Generic;
 using MySql.Data.MySqlClient;
+using Newtonsoft.Json;
 
 namespace Server
 {
-
-    struct User
+    struct Report
     {
-        int id;
-        //приватный ключ
-        //публичный ключ
+        public int Command;
+        public string Id, P, P1, P2, ImgName;
+        public System.Drawing.Imaging.ImageFormat Format;
+        public byte[] Image;
+
+        public Report(int com, string id, string p, string p1, string p2,
+            System.Drawing.Imaging.ImageFormat format, string name, byte[] img)
+        {
+            Command = com;
+            Id = id;
+            P = p;
+            P1 = p1;
+            P2 = p2;
+            ImgName = name;
+            Image = img;
+            Format = format;
+        }
     }
+
     class Server
     {
         private HttpListener listener;
-        List<User> mas_connect;
+        List<int> mas_connect;
 
         public Server() { }
         public void NewUser(object obj)
@@ -26,7 +41,7 @@ namespace Server
             HttpListenerContext context = (HttpListenerContext)obj;
             HttpListenerRequest request;
             HttpListenerResponse response;
-            string inputRead = null;
+            DateTime curDate = DateTime.Now;
 
             request = context.Request;
             // получаем объект ответа 
@@ -34,54 +49,100 @@ namespace Server
             using (StreamReader input = new StreamReader(
             request.InputStream, Encoding.UTF8))
             {
-                inputRead = input.ReadToEnd();
+                Report UserReport = JsonConvert.DeserializeObject<Report>(input.ReadToEnd());
 
-                char key = inputRead[0];
+                int key = UserReport.Command;
+
+                var connect = Connection("pavel6520.hopto.org", 25565, "project", "root", "6520");
+                connect.Open();
+                if (connect.State != System.Data.ConnectionState.Open)
+                {
+                    Console.WriteLine("Ошибка подключения к базе данных");
+                    return;
+                }
+
                 switch (key)
                 {
-                    case '0':
+                    case 0:
                         Random rand = new Random();
                         int id_tmp = rand.Next(100, 10000);
 
                         SendMessage(response, id_tmp.ToString());
                         Console.WriteLine();
                         Console.WriteLine();
-                        Console.WriteLine("ID " + id_tmp + " подключен");
+                        Console.WriteLine(curDate + " ID " + id_tmp + " подключен");
                         Console.WriteLine();
                         Console.WriteLine();
-                        return;
+                        break;
 
-                    case '1':
-                        int i;
-                        for (i = 2; i < inputRead.Length; i++)
-                            Console.Write(inputRead[i]);
+                    case 1:
                         Console.WriteLine();
+                        Console.WriteLine(curDate + " " + UserReport.Id + " > " + UserReport.P);
                         SendMessage(response, "Сообщение отправлено");
                         break;
 
-                    case '2':
-                        i = 2;
-                        int count = 0;
-                        while (i < inputRead.Length)
-                        {
-                            if (inputRead[i] == '\n')
-                                count++;
+                    case 2:
+                        Console.WriteLine();
+                        Console.WriteLine(curDate + " Отчет от Id: " + UserReport.Id);
+                        Console.WriteLine("1: " + UserReport.P);
+                        Console.WriteLine("2: " + UserReport.P1);
+                        Console.WriteLine("3: " + UserReport.P2);
 
-                            Console.Write(inputRead[i]);
-                            i++;
-                        }
+                        Query(connect, "insert into project.test values( '" +
+                            UserReport.Id + "', '" +
+                            UserReport.P + "', '" +
+                            UserReport.P1 + "', '" +
+                            UserReport.P2 + "'," +
+                            "now() )");
+
                         Console.WriteLine();
                         SendMessage(response, "Отчет отправлен");
                         break;
 
-                    case '3':
-                        for (i = 2; i < inputRead.Length; i++)
-                            Console.Write(inputRead[i]);
+                    case 3:
+                        try
+                        {
+                            using (var reader = Query(connect, "select P, P1, P2 from project.test order by Date desc limit 1"))
+                            {
+                                while (reader.Read())
+                                    SendMessage(response, JsonConvert.SerializeObject(new Report(0, "", reader[0].ToString(),
+                                        reader[1].ToString(), reader[2].ToString(), null, "", null)));
+                            }                 
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.Message);
+                            Console.WriteLine(e.StackTrace);
+                            throw;
+                        }
+                        break;
 
-                        Console.Write(" отключился");
+                    case 4:
+                        Console.WriteLine();
+                        Console.Write(curDate + " " + UserReport.Id + " отключился");
+                        Console.WriteLine();
+                        Console.WriteLine();
+                        break;
+
+                    case 5:
+                        SendMessage(response, JsonConvert.SerializeObject(new Report(0, UserReport.Id, "", "", "", null, "", null)));
+                        Console.WriteLine(curDate + " Проверка соединения от " + UserReport.Id);
+                        break;
+
+                    case 6:
+                        Console.WriteLine();
+                        Console.WriteLine("Format: " + UserReport.Format.ToString());
+                        Console.WriteLine(curDate + " Принято изображение от " + UserReport.Id);
+
+                        File.WriteAllBytes(@"D:\Alexander\Programming\C#\Клиент-сервер\Server\Images\t.png", UserReport.Image);
+
+                        SendMessage(response, "Изображение отправлено");
                         Console.WriteLine();
                         break;
                 }
+
+                connect.Close();
+                connect.Dispose();
             }
         }
         public void Start(string host)
@@ -110,13 +171,23 @@ namespace Server
         }
         public void SendMessage(HttpListenerResponse response, string message)
         {
-            byte[] buff;
-            Stream output;
+            response.ContentLength64 = Encoding.UTF8.GetBytes(message).Length;
+            response.OutputStream.Write(Encoding.UTF8.GetBytes(message), 0, Encoding.UTF8.GetBytes(message).Length);
+        }
+        public MySqlConnection Connection(string host, int port, string database, string username, string password)
+        {
+            /*String connString = "server=" + host + ";database=" + database
+               + ";port=" + port + ";user=" + username + ";password=" + password;
+            MySqlConnection conn = new MySqlConnection(connString);
+            return conn;*/
 
-            buff = Encoding.UTF8.GetBytes(message);
-            response.ContentLength64 = buff.Length;
-            output = response.OutputStream;
-            output.Write(buff, 0, buff.Length);
+            return new MySqlConnection("server=" + host + ";database=" + database
+               + ";port=" + port + ";user=" + username + ";password=" + password); ;
+
+        }
+        public MySqlDataReader Query(MySqlConnection connect, string query)
+        {
+            return new MySqlCommand(query, connect).ExecuteReader();
         }
     }
 }
