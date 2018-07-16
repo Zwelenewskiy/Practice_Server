@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing.Imaging;
 using System.Text;
 using System.Net;
 using System.IO;
@@ -13,11 +14,10 @@ namespace Server
     {
         public int Command;
         public string Id, P, P1, P2, ImgName;
-        public System.Drawing.Imaging.ImageFormat Format;
+        public ImageFormat Format;
         public byte[] Image;
 
-        public Report(int com, string id, string p, string p1, string p2,
-            System.Drawing.Imaging.ImageFormat format, string name, byte[] img)
+        public Report(int com, string id, string p, string p1, string p2, ImageFormat format, string name, byte[] img)
         {
             Command = com;
             Id = id;
@@ -32,8 +32,10 @@ namespace Server
 
     class Server
     {
+        const string ImagesDirectory = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\";
+
         private HttpListener listener;
-        List<int> mas_connect;
+        List<int> UserIdArray = new List<int>();//Id активных пользователей
 
         public Server() { }
         public void NewUser(object obj)
@@ -65,7 +67,12 @@ namespace Server
                 {
                     case 0:
                         Random rand = new Random();
-                        int id_tmp = rand.Next(100, 10000);
+
+                        int id_tmp;
+                        do
+                        {
+                            id_tmp = rand.Next(100, 10000);
+                        } while (UserIdArray.IndexOf(id_tmp) > 0);   
 
                         SendMessage(response, id_tmp.ToString());
                         Console.WriteLine();
@@ -93,7 +100,7 @@ namespace Server
                             UserReport.P + "', '" +
                             UserReport.P1 + "', '" +
                             UserReport.P2 + "'," +
-                            "now() )");
+                            "now() )", false);
 
                         Console.WriteLine();
                         SendMessage(response, "Отчет отправлен");
@@ -102,7 +109,7 @@ namespace Server
                     case 3:
                         try
                         {
-                            using (var reader = Query(connect, "select P, P1, P2 from project.test order by Date desc limit 1"))
+                            using (var reader = Query(connect, "select P, P1, P2 from project.test order by Date desc limit 1", true))
                             {
                                 while (reader.Read())
                                     SendMessage(response, JsonConvert.SerializeObject(new Report(0, "", reader[0].ToString(),
@@ -119,7 +126,17 @@ namespace Server
 
                     case 4:
                         Console.WriteLine();
-                        Console.Write(curDate + " " + UserReport.Id + " отключился");
+
+                        Query(connect, "delete from project.test1 where Id = '" + UserReport.Id + "' ", false);
+
+                        string[] files = Directory.GetFiles(ImagesDirectory);
+                        for (int i = 0; i < files.Length; i++)
+                            if (files[i].IndexOf(UserReport.Id) > 0)
+                                File.Delete(files[i]);
+
+                        UserIdArray.Remove(Convert.ToInt32(UserReport.Id));
+
+                        Console.WriteLine(curDate + " " + UserReport.Id + " отключился");
                         Console.WriteLine();
                         Console.WriteLine();
                         break;
@@ -131,12 +148,31 @@ namespace Server
 
                     case 6:
                         Console.WriteLine();
-                        Console.WriteLine("Format: " + UserReport.Format.ToString());
                         Console.WriteLine(curDate + " Принято изображение от " + UserReport.Id);
 
-                        File.WriteAllBytes(@"D:\Alexander\Programming\C#\Клиент-сервер\Server\Images\t.png", UserReport.Image);
+                        string path = ImagesDirectory + UserReport.Id + '.' + UserReport.Format;
+                        File.WriteAllBytes(path, UserReport.Image);
 
+                         Query(connect, "insert into project.test1 values( '" +
+                             UserReport.Id + "', '" +
+                             path + "', " +
+                             "now() )", false);
+                        
                         SendMessage(response, "Изображение отправлено");
+                        Console.WriteLine();
+                        break;
+
+                    case 7:
+                        Console.WriteLine();
+
+                        using (var reader = Query(connect, "select Image from project.test1 order by Date desc limit 1", true))
+                        {
+                            while (reader.Read())
+                            SendMessage(response, JsonConvert.SerializeObject(new Report(0, "", "", "", "", null, "", 
+                                    File.ReadAllBytes(reader[0].ToString()))));
+                        }                       
+
+                        Console.WriteLine(curDate + " Изображение отправлено к " + UserReport.Id);
                         Console.WriteLine();
                         break;
                 }
@@ -185,9 +221,15 @@ namespace Server
                + ";port=" + port + ";user=" + username + ";password=" + password); ;
 
         }
-        public MySqlDataReader Query(MySqlConnection connect, string query)
+        public MySqlDataReader Query(MySqlConnection connect, string query, bool need)
         {
-            return new MySqlCommand(query, connect).ExecuteReader();
-        }
+            if (need)
+                return new MySqlCommand(query, connect).ExecuteReader();
+            else
+            {
+                new MySqlCommand(query, connect).ExecuteReader();
+                return null;
+            }                
+        }        
     }
 }
