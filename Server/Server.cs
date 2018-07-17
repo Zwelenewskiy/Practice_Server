@@ -32,33 +32,39 @@ namespace Server
 
     struct Image
     {
-        string name;
-        byte[] image;
+        public string name;
+        public long size;
+        public byte[] image;
 
-        public Image(string n, byte[] img)
+        public Image(string n, long s, byte[] img)
         {
             name = n;
+            size = s;
             image = img;
         }
     }    
 
+    struct Images
+    {
+        public List<Image> images;
+    }
+
     class Server
     {
         const string ImagesDirectory = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\";
-        const string ForDownload = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\ForDownload";
+        const string ForUpload = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\ForUpload";
         
 
         private HttpListener listener;
         List<int> UserIdArray = new List<int>();//Id активных пользователей
-        List<Image> images = new List<Image>();//изображения для пользователя
-        public MemoryStream ms;
+        Images ImagesArray;
 
         public Server() { }
         public void NewUser(object obj)
         {
             HttpListenerContext context = (HttpListenerContext)obj;
             HttpListenerRequest request;
-            HttpListenerResponse response; 
+            HttpListenerResponse response;
             DateTime curDate = DateTime.Now;
 
             request = context.Request;
@@ -195,7 +201,7 @@ namespace Server
 
                     case 8:
                         Console.WriteLine();
-                        SendMessage(response, JsonConvert.SerializeObject(images));
+                        SendMessage(response, JsonConvert.SerializeObject(ImagesArray));
                         Console.WriteLine(curDate + " Изображения отправлены к " + UserReport.Id);
                         Console.WriteLine();
 
@@ -208,20 +214,22 @@ namespace Server
         }
         public void Start(string host)
         {
+            DateTime curDate = DateTime.Now;
+
             listener = new HttpListener();
             // установка адресов прослушки 
             listener.Prefixes.Add(host);
             listener.Start();
-                      
-            string[] imgs = Directory.GetFiles(ForDownload);
+
+            ImagesArray.images = new List<Image>();
+            string[] imgs = Directory.GetFiles(ForUpload);
             for(int i = 0; i < imgs.Length; i++)
             {
-                images.Add(new Image(imgs[i].Substring(imgs[i].LastIndexOf(@"\") + 1), File.ReadAllBytes(imgs[i])));
+                ImagesArray.images.Add(new Image(imgs[i].Substring(imgs[i].LastIndexOf(@"\") + 1),
+                    new FileInfo(imgs[i]).Length / 1024, File.ReadAllBytes(imgs[i])));
             }
 
-            //string tmp = JsonConvert.SerializeObject(images);
-
-            Console.WriteLine("Сервер запущен. Ожидание подключений...");
+            Console.WriteLine(curDate +  " Сервер запущен. Ожидание подключений...");
             Console.WriteLine();
         }
         public void Stop()
@@ -245,11 +253,6 @@ namespace Server
         }
         public MySqlConnection Connection(string host, int port, string database, string username, string password)
         {
-            /*String connString = "server=" + host + ";database=" + database
-               + ";port=" + port + ";user=" + username + ";password=" + password;
-            MySqlConnection conn = new MySqlConnection(connString);
-            return conn;*/
-
             return new MySqlConnection("server=" + host + ";database=" + database
                + ";port=" + port + ";user=" + username + ";password=" + password); ;
 
