@@ -87,7 +87,7 @@ namespace Server
                 {
                     case 0:
                         Random rand = new Random();
-
+                        
                         int id_tmp;
                         do
                         {
@@ -187,20 +187,6 @@ namespace Server
 
                     case 7:
                         Console.WriteLine();
-
-                        using (var reader = Query(connect, "select Image from project.test1 order by Date desc limit 1", true))
-                        {
-                            while (reader.Read())
-                            SendMessage(response, JsonConvert.SerializeObject(new Report(0, "", "", "", "", null, "", 
-                                    File.ReadAllBytes(reader[0].ToString()))));
-                        }                       
-
-                        Console.WriteLine(curDate + " Изображение отправлено к " + UserReport.Id);
-                        Console.WriteLine();
-                        break;
-
-                    case 8:
-                        Console.WriteLine();
                         SendMessage(response, JsonConvert.SerializeObject(ImagesArray));
                         Console.WriteLine(curDate + " Изображения отправлены к " + UserReport.Id);
                         Console.WriteLine();
@@ -223,11 +209,15 @@ namespace Server
 
             ImagesArray.images = new List<Image>();
             string[] imgs = Directory.GetFiles(ForUpload);
-            for(int i = 0; i < imgs.Length; i++)
+
+            if(imgs.Length > 0)
             {
-                ImagesArray.images.Add(new Image(imgs[i].Substring(imgs[i].LastIndexOf(@"\") + 1),
-                    new FileInfo(imgs[i]).Length / 1024, File.ReadAllBytes(imgs[i])));
-            }
+                for (int i = 0; i < imgs.Length; i++)
+                {
+                    ImagesArray.images.Add(new Image(imgs[i].Substring(imgs[i].LastIndexOf(@"\") + 1),
+                        new FileInfo(imgs[i]).Length / 1024, File.ReadAllBytes(imgs[i])));
+                }
+            }          
 
             Console.WriteLine(curDate +  " Сервер запущен. Ожидание подключений...");
             Console.WriteLine();
