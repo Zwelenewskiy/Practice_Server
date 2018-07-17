@@ -6,7 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Collections.Generic;
 using MySql.Data.MySqlClient;
-using Newtonsoft.Json;
+using Newtonsoft.Json; 
 
 namespace Server
 {
@@ -30,19 +30,35 @@ namespace Server
         }
     }
 
+    struct Image
+    {
+        string name;
+        byte[] image;
+
+        public Image(string n, byte[] img)
+        {
+            name = n;
+            image = img;
+        }
+    }    
+
     class Server
     {
         const string ImagesDirectory = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\";
+        const string ForDownload = "D:\\\\Alexander\\\\Programming\\\\C#\\\\Клиент-сервер\\\\Server\\\\Images\\\\ForDownload";
+        
 
         private HttpListener listener;
         List<int> UserIdArray = new List<int>();//Id активных пользователей
+        List<Image> images = new List<Image>();//изображения для пользователя
+        public MemoryStream ms;
 
         public Server() { }
         public void NewUser(object obj)
         {
             HttpListenerContext context = (HttpListenerContext)obj;
             HttpListenerRequest request;
-            HttpListenerResponse response;
+            HttpListenerResponse response; 
             DateTime curDate = DateTime.Now;
 
             request = context.Request;
@@ -53,8 +69,6 @@ namespace Server
             {
                 Report UserReport = JsonConvert.DeserializeObject<Report>(input.ReadToEnd());
 
-                int key = UserReport.Command;
-
                 var connect = Connection("pavel6520.hopto.org", 25565, "project", "root", "6520");
                 connect.Open();
                 if (connect.State != System.Data.ConnectionState.Open)
@@ -63,7 +77,7 @@ namespace Server
                     return;
                 }
 
-                switch (key)
+                switch (UserReport.Command)
                 {
                     case 0:
                         Random rand = new Random();
@@ -72,7 +86,9 @@ namespace Server
                         do
                         {
                             id_tmp = rand.Next(100, 10000);
-                        } while (UserIdArray.IndexOf(id_tmp) > 0);   
+                        } while (UserIdArray.IndexOf(id_tmp) > 0);
+
+                        UserIdArray.Add(id_tmp);
 
                         SendMessage(response, id_tmp.ToString());
                         Console.WriteLine();
@@ -86,6 +102,7 @@ namespace Server
                         Console.WriteLine();
                         Console.WriteLine(curDate + " " + UserReport.Id + " > " + UserReport.P);
                         SendMessage(response, "Сообщение отправлено");
+                        Console.WriteLine();
                         break;
 
                     case 2:
@@ -175,6 +192,14 @@ namespace Server
                         Console.WriteLine(curDate + " Изображение отправлено к " + UserReport.Id);
                         Console.WriteLine();
                         break;
+
+                    case 8:
+                        Console.WriteLine();
+                        SendMessage(response, JsonConvert.SerializeObject(images));
+                        Console.WriteLine(curDate + " Изображения отправлены к " + UserReport.Id);
+                        Console.WriteLine();
+
+                        break;
                 }
 
                 connect.Close();
@@ -187,6 +212,14 @@ namespace Server
             // установка адресов прослушки 
             listener.Prefixes.Add(host);
             listener.Start();
+                      
+            string[] imgs = Directory.GetFiles(ForDownload);
+            for(int i = 0; i < imgs.Length; i++)
+            {
+                images.Add(new Image(imgs[i].Substring(imgs[i].LastIndexOf(@"\") + 1), File.ReadAllBytes(imgs[i])));
+            }
+
+            //string tmp = JsonConvert.SerializeObject(images);
 
             Console.WriteLine("Сервер запущен. Ожидание подключений...");
             Console.WriteLine();
